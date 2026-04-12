@@ -1,0 +1,155 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Brand ── */
+  --color-primary:                   #EF3340;
+  --color-primary-container:         #ff5357;
+  --color-on-primary:                #ffffff;
+  --color-on-primary-container:      #5c000c;
+  --color-inverse-primary:           #bf0124;
+  --color-primary-fixed:             #ffdad8;
+  --color-primary-fixed-dim:         #ffb3b0;
+  --color-on-primary-fixed:          #410006;
+  --color-on-primary-fixed-variant:  #930019;
+
+  /* ── Secondary ── */
+  --color-secondary:                     #ffb3b0;
+  --color-secondary-container:           #862024;
+  --color-on-secondary:                  #660611;
+  --color-on-secondary-container:        #ff9995;
+  --color-secondary-fixed:               #ffdad8;
+  --color-secondary-fixed-dim:           #ffb3b0;
+  --color-on-secondary-fixed:            #410006;
+  --color-on-secondary-fixed-variant:    #862024;
+
+  /* ── Tertiary ── */
+  --color-tertiary:                  #6ed7d8;
+  --color-tertiary-container:        #2ca0a1;
+  --color-on-tertiary:               #003738;
+  --color-on-tertiary-container:     #002f30;
+  --color-tertiary-fixed:            #8bf3f5;
+  --color-tertiary-fixed-dim:        #6ed7d8;
+  --color-on-tertiary-fixed:         #002020;
+  --color-on-tertiary-fixed-variant: #004f51;
+
+  /* ── Error ── */
+  --color-error:              #ffb4ab;
+  --color-error-container:    #93000a;
+  --color-on-error:           #690005;
+  --color-on-error-container: #ffdad6;
+
+  /* ── Surface / Background ── */
+  --color-surface:                   #131313;
+  --color-surface-dim:               #131313;
+  --color-surface-bright:            #3a3939;
+  --color-surface-variant:           #353534;
+  --color-surface-container-lowest:  #0e0e0e;
+  --color-surface-container-low:     #1c1b1b;
+  --color-surface-container:         #201f1f;
+  --color-surface-container-high:    #2a2a2a;
+  --color-surface-container-highest: #353534;
+  --color-surface-tint:              #ffb3b0;
+  --color-on-surface:                #e5e2e1;
+  --color-on-surface-variant:        #e5bdbb;
+  --color-background:                #131313;
+  --color-on-background:             #e5e2e1;
+
+  /* ── Light mode surface (for form page) ── */
+  --color-surface-light:             #faf9f6;
+  --color-on-surface-light:         #1a1a1a;
+
+  /* ── Outline ── */
+  --color-outline:         #ac8886;
+  --color-outline-variant: rgba(92, 63, 62, 0.2);
+
+  /* ── Inverse ── */
+  --color-inverse-surface:    #e5e2e1;
+  --color-inverse-on-surface: #313030;
+
+  /* ── Font Families ── */
+  --font-headline: "Lexend", sans-serif;
+  --font-body:     "Inter", sans-serif;
+  --font-label:    "Inter", sans-serif;
+
+  /* ── Border Radius ── */
+  --radius-sm:   0.25rem;
+  --radius:      0.25rem;
+  --radius-lg:   0.75rem;
+  --radius-xl:   1rem;
+  --radius-2xl:  1.5rem;
+  --radius-3xl:  2rem;
+  --radius-full: 9999px;
+}
+
+/* Fonts are loaded via index.html */
+
+/* ── Base ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-background);
+  color: var(--color-on-surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Light mode overrides */
+body.light {
+  --color-surface:                   #faf9f6;
+  --color-surface-dim:               #f0efec;
+  --color-surface-bright:            #ffffff;
+  --color-surface-variant:           #e8e6e5;
+  --color-surface-container-lowest:  #ffffff;
+  --color-surface-container-low:     #f5f4f1;
+  --color-surface-container:         #eeede9;
+  --color-surface-container-high:    #e8e7e3;
+  --color-surface-container-highest: #e2e1dd;
+  --color-on-surface:                #1a1917;
+  --color-on-surface-variant:        #4e4543;
+  --color-background:                #faf9f6;
+  --color-on-background:             #1a1917;
+  --color-outline-variant:           rgba(92, 63, 62, 0.15);
+}
+
+/* ── Material Symbols ── */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
+}
+.icon-filled {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ── Glass Card ── */
+.glass-card {
+  background: rgba(28, 27, 27, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.light .glass-card {
+  background: rgba(250, 249, 246, 0.75);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--color-surface); }
+::-webkit-scrollbar-thumb { background: var(--color-surface-container-highest); border-radius: 10px; }
+
+/* ── No scrollbar ── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Selection ── */
+::selection {
+  background-color: var(--color-primary);
+  color: #fff;
+}
