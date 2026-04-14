@@ -197,7 +197,7 @@ export default function Form() {
       setTimeout(() => {
         setInlineAffirmation(null)
         setScreenIndex(i => Math.min(i + 1, FLOW.length - 1))
-      }, 1100)
+      }, 3000)
     } else {
       setDirection(1)
       setScreenIndex(i => Math.min(i + 1, FLOW.length - 1))
@@ -232,64 +232,42 @@ export default function Form() {
     setIsSubmitting(true)
     setSubmitError(null)
     try {
-      const imc = answers.weight && answers.height ? calcIMC(answers.weight, answers.height) : null
-      const imcInfo = imc ? getIMCLabel(imc) : null
+      console.log('[MoveVocê] Verificando sessão do usuário...')
+      let { data: { session } } = await supabase.auth.getSession()
 
-      const payload = {
-        first_name: answers.firstName,
-        main_goal: answers.mainGoal,
-        biggest_motivation: answers.biggestMotivation,
-        biological_sex: answers.biologicalSex || null,
-        age: answers.age || null,
-        weight_kg: answers.weight || null,
-        height_cm: answers.height || null,
-        body_feeling_now: answers.bodyFeelingNow,
-        fitness_level: answers.fitnessLevel,
-        training_location: answers.trainingLocation,
-        training_days_per_week: answers.trainingDaysPerWeek || null,
-        session_duration: answers.sessionDuration,
-        injuries: answers.injuries,
-        dietary_restrictions: answers.dietaryRestrictions,
-        meals_per_day: answers.mealsPerDay || null,
-        cooking_habit: answers.cookingHabit,
-        hunger_pattern: answers.hungerPattern,
-        water_intake: answers.waterIntake,
-        food_relationship: answers.foodRelationship,
-        sleep_quality: answers.sleepQuality,
-        stress_level: answers.stressLevel,
-        work_style: answers.workStyle,
-        imc: imc,
-        imc_label: imcInfo?.label ?? null,
-        tmb: answers.tmb ?? null,
-        tdee: answers.tdee ?? null,
-        tdee_adjusted: answers.tdeeAdjusted ?? null,
-        protein_g: answers.proteinG ?? null,
-        carbs_g: answers.carbsG ?? null,
-        fat_g: answers.fatG ?? null,
+      // Se não tiver sessão (visitante), loga anonimamente para obter token JWT (se habilitado no painel)
+      if (!session) {
+        console.log('[MoveVocê] Sessão não encontrada. Tentando login anônimo...')
+        const { data, error } = await supabase.auth.signInAnonymously()
+        if (error) {
+          throw new Error('Não foi possível autenticar o formulário. O login anônimo está liberado no Supabase?')
+        }
+        session = data.session
       }
 
-      console.log('[MoveVocê] Enviando respostas do questionário:', payload)
+      console.log('[MoveVocê] Enviando respostas para a API Backend...', answers)
 
-      const { data, error } = await supabase
-        .from('questionario_respostas')
-        .insert([payload])
-        .select()
+      const response = await fetch('http://localhost:4000/api/v1/onboarding/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ answers })
+      })
 
-      if (error) {
-        console.error('[MoveVocê] Erro ao salvar respostas:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-        })
-        setSubmitError(error.message)
-      } else {
-        console.log('[MoveVocê] Respostas salvas com sucesso! ID:', data?.[0]?.id)
-        navigate('/home')
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Falha ao processar os dados.')
       }
-    } catch (err) {
+
+      console.log('[MoveVocê] Respostas processadas com sucesso pela API! ID:', data?.data?.onboardingId)
+      navigate('/home')
+
+    } catch (err: any) {
       console.error('[MoveVocê] Erro inesperado:', err)
-      setSubmitError('Erro inesperado. Tente novamente.')
+      setSubmitError(err.message || 'Erro inesperado. Tente novamente.')
     } finally {
       setIsSubmitting(false)
     }
@@ -977,7 +955,7 @@ export default function Form() {
                 className="w-16 h-16 rounded-full flex items-center justify-center text-2xl"
                 style={{ backgroundColor: 'rgba(27,107,74,0.15)', border: '1.5px solid rgba(27,107,74,0.4)' }}
               >
-                ✅
+                👍
               </motion.div>
               <motion.p
                 initial={{ opacity: 0, y: 8 }}
@@ -991,8 +969,8 @@ export default function Form() {
               <motion.div
                 initial={{ scaleX: 0 }}
                 animate={{ scaleX: 1 }}
-                transition={{ delay: 0.3, duration: 0.8, ease: 'easeOut' }}
-                className="h-0.5 w-24 rounded-full"
+                transition={{ delay: 0.1, duration: 2.3, ease: 'linear' }}
+                className="h-1.5 w-64 md:w-80 rounded-full"
                 style={{ backgroundColor: '#1B6B4A' }}
               />
             </motion.div>

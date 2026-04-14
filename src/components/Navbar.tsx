@@ -10,7 +10,11 @@ const navLinks = [
   { to: '/#comunidade', label: 'Comunidade' },
 ]
 
-export default function Navbar() {
+interface NavbarProps {
+  minimal?: boolean
+}
+
+export default function Navbar({ minimal = false }: NavbarProps) {
   const { pathname } = useLocation()
   const { theme, toggleTheme } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -27,26 +31,28 @@ export default function Navbar() {
         </Link>
 
         {/* Desktop nav */}
-        <div className="hidden md:flex items-center gap-8">
-          {navLinks.map(({ to, label }) => {
-            const active = pathname === to
-            return (
-              <Link
-                key={to}
-                to={to}
-                className="font-bold tracking-tight transition-colors"
-                style={{
-                  fontFamily: 'var(--font-headline)',
-                  color: active ? '#EF3340' : 'var(--color-on-surface-variant)',
-                  borderBottom: active ? '2px solid #EF3340' : '2px solid transparent',
-                  paddingBottom: '2px',
-                }}
-              >
-                {label}
-              </Link>
-            )
-          })}
-        </div>
+        {!minimal && (
+          <div className="hidden md:flex items-center gap-8">
+            {navLinks.map(({ to, label }) => {
+              const active = pathname === to
+              return (
+                <Link
+                  key={to}
+                  to={to}
+                  className="font-bold tracking-tight transition-colors"
+                  style={{
+                    fontFamily: 'var(--font-headline)',
+                    color: active ? '#EF3340' : 'var(--color-on-surface-variant)',
+                    borderBottom: active ? '2px solid #EF3340' : '2px solid transparent',
+                    paddingBottom: '2px',
+                  }}
+                >
+                  {label}
+                </Link>
+              )
+            })}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex items-center gap-3">
@@ -70,7 +76,7 @@ export default function Navbar() {
             Entrar
           </Link>
           <Link
-            to="/login"
+            to="/form"
             className="font-bold text-sm px-5 py-2 rounded-lg transition-all hover:brightness-110 active:scale-95"
             style={{ fontFamily: 'var(--font-headline)', backgroundColor: '#EF3340', color: '#fff' }}
           >
@@ -78,22 +84,24 @@ export default function Navbar() {
           </Link>
 
           {/* Mobile Hamburger */}
-          <button
-            className="md:hidden ml-1 w-9 h-9 flex items-center justify-center rounded-full"
-            style={{ backgroundColor: 'var(--color-surface-container-high)', color: 'var(--color-on-surface)' }}
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="Menu"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-              {menuOpen ? 'close' : 'menu'}
-            </span>
-          </button>
+          {!minimal && (
+            <button
+              className="md:hidden ml-1 w-9 h-9 flex items-center justify-center rounded-full"
+              style={{ backgroundColor: 'var(--color-surface-container-high)', color: 'var(--color-on-surface)' }}
+              onClick={() => setMenuOpen(!menuOpen)}
+              aria-label="Menu"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                {menuOpen ? 'close' : 'menu'}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Mobile menu */}
       <AnimatePresence>
-        {menuOpen && (
+        {!minimal && menuOpen && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}

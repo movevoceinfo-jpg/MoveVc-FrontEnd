@@ -4,32 +4,32 @@ import BottomNav from '../components/BottomNav'
 import Footer from '../components/Footer'
 
 const days = [
-  { label: 'Seg', name: 'Legs',  pct: 80,  active: false },
-  { label: 'Ter', name: 'Push',  pct: 65,  active: false },
-  { label: 'Qua', name: 'Rest',  pct: 0,   active: false, rest: true },
-  { label: 'Qui', name: 'Pull',  pct: 90,  active: false },
-  { label: 'Sex', name: 'Legs',  pct: 75,  active: false },
-  { label: 'Sáb', name: 'Push',  pct: 40,  active: true },
-  { label: 'Dom', name: 'Rest',  pct: 0,   active: false, rest: true, faded: true },
+  { label: 'Seg', name: 'Legs', pct: 80, active: false },
+  { label: 'Ter', name: 'Push', pct: 65, active: false },
+  { label: 'Qua', name: 'Rest', pct: 0, active: false, rest: true },
+  { label: 'Qui', name: 'Pull', pct: 90, active: false },
+  { label: 'Sex', name: 'Legs', pct: 75, active: false },
+  { label: 'Sáb', name: 'Push', pct: 40, active: true },
+  { label: 'Dom', name: 'Rest', pct: 0, active: false, rest: true, faded: true },
 ]
 
 const meals = [
-  { icon: 'coffee',         name: 'Café da Manhã', desc: 'Ovos mexidos, abacate, torrada integral', kcal: 450,  done: true },
-  { icon: 'restaurant',     name: 'Almoço',        desc: 'Frango grelhado, batata doce, brócolis', kcal: 680,  done: true },
-  { icon: 'dinner_dining',  name: 'Jantar',        desc: 'Salmão, quinoa, mix de folhas',           kcal: null, done: false },
+  { icon: 'coffee', name: 'Café da Manhã', desc: 'Ovos mexidos, abacate, torrada integral', kcal: 450, done: true },
+  { icon: 'restaurant', name: 'Almoço', desc: 'Frango grelhado, batata doce, brócolis', kcal: 680, done: true },
+  { icon: 'dinner_dining', name: 'Jantar', desc: 'Salmão, quinoa, mix de folhas', kcal: null, done: false },
 ]
 
 const exercises = [
-  { name: 'Supino Reto (Barra)',   sets: '4 Séries', reps: '10-12 Reps' },
-  { name: 'Crucifixo Inclinado',   sets: '3 Séries', reps: '15 Reps' },
-  { name: 'Paralelas',             sets: '3 Séries', reps: 'Até a Falha' },
+  { name: 'Supino Reto (Barra)', sets: '4 Séries', reps: '10-12 Reps' },
+  { name: 'Crucifixo Inclinado', sets: '3 Séries', reps: '15 Reps' },
+  { name: 'Paralelas', sets: '3 Séries', reps: 'Até a Falha' },
 ]
 
 const macros = [
   { label: 'Proteína', pct: 65, current: '142g', total: '220g', color: '#EF3340' },
-  { label: 'Carbo',    pct: 40, current: '110g', total: '350g', color: 'var(--color-tertiary-container)' },
-  { label: 'Gordura',  pct: 25, current: '22g',  total: '85g',  color: 'var(--color-secondary-container)' },
-  { label: 'Água',     pct: 80, current: '3.2L', total: '4L',   color: '#fff' },
+  { label: 'Carbo', pct: 40, current: '110g', total: '350g', color: 'var(--color-tertiary-container)' },
+  { label: 'Gordura', pct: 25, current: '22g', total: '85g', color: 'var(--color-secondary-container)' },
+  { label: 'Água', pct: 80, current: '3.2L', total: '4L', color: '#fff' },
 ]
 
 export default function Home() {

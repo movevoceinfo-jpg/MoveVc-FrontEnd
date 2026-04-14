@@ -27,7 +27,7 @@ const reviews = [
   },
 ]
 
-const fadeUp = {
+const fadeUp: any = {
   hidden: { opacity: 0, y: 32 },
   visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.12, duration: 0.6, ease: 'easeOut' } }),
 }
@@ -35,7 +35,7 @@ const fadeUp = {
 export default function Landing() {
   return (
     <>
-      <Navbar />
+      <Navbar minimal />
       <main>
         {/* ── Hero ── */}
         <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
