@@ -72,7 +72,7 @@ export default function Footer() {
 
       <div className="py-8 px-8 text-center" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
         <p className="text-sm uppercase tracking-widest" style={{ color: 'rgba(120,115,114,1)', fontFamily: 'var(--font-headline)', letterSpacing: '0.2em' }}>
-          © 2024 Move Você. Performance Editorial. Todos os direitos reservados.
+          © 2026 Move Você. Performance Editorial. Todos os direitos reservados.
         </p>
       </div>
     </footer>

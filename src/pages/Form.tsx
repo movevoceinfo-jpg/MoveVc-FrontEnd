@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { useQuestionnaire, calcIMC, getIMCLabel, progressMap } from '../context/QuestionnaireContext'
@@ -19,6 +19,7 @@ type ScreenId =
   | 'transition_4'
   | 'sleepQuality' | 'stressLevel' | 'workStyle'
   | 'transition_5'
+  | 'choosePlan' | 'planLoading' | 'createAccount'
   | 'loading'
 
 interface Option {
@@ -27,6 +28,20 @@ interface Option {
   icon?: string
   description?: string
   affirmation?: string
+}
+
+interface PlanData {
+  id: string
+  nome: string
+  slug: string
+  destaque: boolean
+  foco: string
+  preco_mensal: number
+  preco_anual_mensal: number
+  cobranca_anual_total: number
+  economia_anual: number
+  garantia_dias: number
+  features: { category: string; feature: string; included: boolean }[]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,7 +59,15 @@ const FLOW: ScreenId[] = [
   'transition_4',
   'sleepQuality', 'stressLevel', 'workStyle',
   'transition_5',
+  'choosePlan', 'planLoading', 'createAccount',
   'loading',
+]
+
+const PLAN_LOADING_BULLETS = [
+  'Analisando seu perfil completo...',
+  'Selecionando os recursos ideais para você...',
+  'Preparando seu plano personalizado...',
+  'Quase lá... ✅',
 ]
 
 const LOADING_BULLETS = [
@@ -177,10 +200,35 @@ export default function Form() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
+  // ── Plan selection state ──────────────────────────────────────────────────
+  const [plans, setPlans] = useState<PlanData[]>([])
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('annual')
+  const [planLoadingBullets, setPlanLoadingBullets] = useState<string[]>([])
+  const planLoadingDone = useRef(false)
+
+  // ── Account creation state ────────────────────────────────────────────────
+  const [accountEmail, setAccountEmail] = useState('')
+  const [accountPassword, setAccountPassword] = useState('')
+  const [accountError, setAccountError] = useState<string | null>(null)
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false)
+
   const screenId = FLOW[screenIndex]
   // Use affirmation key so AnimatePresence treats it as its own screen
   const animKey = inlineAffirmation ? `aff-${screenIndex}` : screenId
   const progress = inlineAffirmation ? (progressMap[screenId] ?? 0) : (progressMap[screenId] ?? 0)
+
+  // ── Fetch plans from Supabase ─────────────────────────────────────────────
+  useEffect(() => {
+    async function fetchPlans() {
+      const { data } = await supabase
+        .from('planos')
+        .select('*')
+        .eq('ativo', true)
+        .order('preco_mensal', { ascending: true })
+      if (data) setPlans(data as PlanData[])
+    }
+    fetchPlans()
+  }, [])
 
   // ── IMC live ──────────────────────────────────────────────────────────────
   const liveIMC = answers.weight && answers.height
@@ -209,6 +257,27 @@ export default function Form() {
     setScreenIndex(i => Math.max(i - 1, 0))
   }, [])
 
+  // ── Plan loading animation ────────────────────────────────────────────────
+  useEffect(() => {
+    if (screenId !== 'planLoading') return
+    if (planLoadingDone.current) {
+      // Already done? Skip straight to next
+      goNext()
+      return
+    }
+    setPlanLoadingBullets([])
+    PLAN_LOADING_BULLETS.forEach((bullet, i) => {
+      setTimeout(() => {
+        setPlanLoadingBullets(prev => [...prev, bullet])
+      }, i * 650)
+    })
+    setTimeout(() => {
+      planLoadingDone.current = true
+      goNext()
+    }, PLAN_LOADING_BULLETS.length * 650 + 400)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenId])
+
   // ── Loading screen animation ───────────────────────────────────────────────
   useEffect(() => {
     if (screenId !== 'loading') return
@@ -233,41 +302,62 @@ export default function Form() {
     setSubmitError(null)
     try {
       console.log('[MoveVocê] Verificando sessão do usuário...')
-      let { data: { session } } = await supabase.auth.getSession()
+      const { data: { session } } = await supabase.auth.getSession()
 
-      // Se não tiver sessão (visitante), loga anonimamente para obter token JWT (se habilitado no painel)
       if (!session) {
-        console.log('[MoveVocê] Sessão não encontrada. Tentando login anônimo...')
-        const { data, error } = await supabase.auth.signInAnonymously()
-        if (error) {
-          throw new Error('Não foi possível autenticar o formulário. O login anônimo está liberado no Supabase?')
-        }
-        session = data.session
+        throw new Error('Usuário não autenticado. Por favor, crie sua conta na etapa anterior.')
       }
 
-      console.log('[MoveVocê] Enviando respostas para a API Backend...', answers)
+      console.log('[MoveVocê] Enviando respostas para o banco de dados...', answers)
 
-      const response = await fetch('http://localhost:4000/api/v1/onboarding/submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({ answers })
-      })
+      const { data, error } = await supabase
+        .from('questionario_respostas')
+        .insert([{
+          user_id: session.user.id,
+          first_name: answers.firstName,
+          main_goal: answers.mainGoal,
+          biggest_motivation: answers.biggestMotivation,
+          biological_sex: answers.biologicalSex,
+          age: answers.age,
+          weight_kg: answers.weight,
+          height_cm: answers.height,
+          body_feeling_now: answers.bodyFeelingNow,
+          fitness_level: answers.fitnessLevel,
+          training_location: answers.trainingLocation,
+          training_days_per_week: answers.trainingDaysPerWeek,
+          session_duration: answers.sessionDuration,
+          injuries: answers.injuries,
+          dietary_restrictions: answers.dietaryRestrictions,
+          meals_per_day: answers.mealsPerDay,
+          cooking_habit: answers.cookingHabit,
+          hunger_pattern: answers.hungerPattern,
+          water_intake: answers.waterIntake,
+          food_relationship: answers.foodRelationship,
+          sleep_quality: answers.sleepQuality,
+          stress_level: answers.stressLevel,
+          work_style: answers.workStyle,
+          selected_plan_id: answers.selectedPlanId || null,
+          imc: answers.imc,
+          imc_label: answers.imcLabel,
+          tmb: answers.tmb,
+          tdee: answers.tdee,
+          tdee_adjusted: answers.tdeeAdjusted,
+          protein_g: answers.proteinG,
+          carbs_g: answers.carbsG,
+          fat_g: answers.fatG,
+          status: 'completed'
+        }])
+        .select()
+        .single()
 
-      const data = await response.json()
+      if (error) throw error
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Falha ao processar os dados.')
-      }
-
-      console.log('[MoveVocê] Respostas processadas com sucesso pela API! ID:', data?.data?.onboardingId)
+      console.log('[MoveVocê] Respostas salvas com sucesso! ID:', data?.id)
       navigate('/home')
 
     } catch (err: any) {
-      console.error('[MoveVocê] Erro inesperado:', err)
-      setSubmitError(err.message || 'Erro inesperado. Tente novamente.')
+      console.error('[MoveVocê] Erro ao salvar dados:', err)
+      setSubmitError(err.message || 'Erro ao sincronizar dados. Tente novamente.')
     } finally {
       setIsSubmitting(false)
     }
@@ -282,6 +372,34 @@ export default function Form() {
       const aff = opt?.affirmation
         ?? AFFIRMATION_FALLBACKS[Math.floor(Math.random() * AFFIRMATION_FALLBACKS.length)]
       goNext(aff)
+    }
+  }
+
+  // ── Account creation handler ──────────────────────────────────────────────
+  const handleCreateAccount = async () => {
+    setAccountError(null)
+    if (!accountEmail.trim() || !accountPassword.trim()) {
+      setAccountError('Preencha e-mail e senha.')
+      return
+    }
+    if (accountPassword.length < 6) {
+      setAccountError('A senha precisa ter no mínimo 6 caracteres.')
+      return
+    }
+    setIsCreatingAccount(true)
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: accountEmail.trim(),
+        password: accountPassword,
+      })
+      if (error) throw error
+      // Success — advance to final loading
+      goNext()
+    } catch (err: any) {
+      console.error('[MoveVocê] Erro ao criar conta:', err)
+      setAccountError(err.message || 'Erro ao criar conta. Tente novamente.')
+    } finally {
+      setIsCreatingAccount(false)
     }
   }
 
@@ -832,14 +950,296 @@ export default function Form() {
         )
       }
 
-      // ── Transição 5 → Loading ─────────────────────────────────────────────
+      // ── Transição 5 → Escolha do plano ──────────────────────────────────────
       case 'transition_5':
         return (
           <TransitionScreen
             headline={`Perfeito, ${name}! 🎉`}
-            subtext="Temos tudo que precisamos. Estamos montando o seu plano agora..."
+            subtext="Temos tudo que precisamos para criar seu plano. Agora escolha o plano ideal para você."
             onContinue={goNext}
           />
+        )
+
+      // ── Escolha do plano ───────────────────────────────────────────────────
+      case 'choosePlan':
+        return (
+          <div className="w-full space-y-6 pb-6">
+            <div className="text-center space-y-2">
+              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight leading-tight"
+                style={{ fontFamily: 'var(--font-headline)', color: 'var(--color-on-surface)' }}>
+                Escolha seu plano
+              </h1>
+              <p className="text-sm font-medium" style={{ color: 'var(--color-on-surface-variant)' }}>
+                Todos os planos incluem 7 dias de garantia incondicional
+              </p>
+            </div>
+
+            {/* Billing toggle */}
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-xs font-bold uppercase tracking-widest"
+                style={{ color: billingCycle === 'monthly' ? 'var(--color-on-surface)' : 'var(--color-on-surface-variant)' }}>
+                Mensal
+              </span>
+              <button
+                onClick={() => setBillingCycle(c => c === 'monthly' ? 'annual' : 'monthly')}
+                className="relative w-14 h-7 rounded-full transition-colors"
+                style={{ backgroundColor: billingCycle === 'annual' ? '#EF3340' : 'rgba(255,255,255,0.15)' }}
+              >
+                <motion.div
+                  className="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow"
+                  animate={{ left: billingCycle === 'annual' ? '30px' : '2px' }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                />
+              </button>
+              <span className="text-xs font-bold uppercase tracking-widest"
+                style={{ color: billingCycle === 'annual' ? 'var(--color-on-surface)' : 'var(--color-on-surface-variant)' }}>
+                Anual
+              </span>
+              {billingCycle === 'annual' && (
+                <motion.span initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                  style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.3)' }}>
+                  ECONOMIA
+                </motion.span>
+              )}
+            </div>
+
+            {/* Plan cards */}
+            <div className="space-y-4">
+              {plans.map((plan, idx) => {
+                const isSelected = answers.selectedPlanId === plan.id
+                const price = billingCycle === 'annual' ? plan.preco_anual_mensal : plan.preco_mensal
+                const priceStr = Number(price).toFixed(2)
+                const [intPart, decPart] = priceStr.split('.')
+                const includedFeatures = plan.features.filter(f => f.included)
+
+                return (
+                  <motion.button
+                    key={plan.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    onClick={() => setAnswer('selectedPlanId', plan.id)}
+                    className="w-full text-left rounded-2xl p-5 transition-all relative overflow-hidden"
+                    style={{
+                      border: isSelected ? '2px solid #EF3340' : plan.destaque ? '2px solid rgba(239,51,64,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                      backgroundColor: isSelected ? 'var(--color-surface-container-high)' : 'var(--color-surface-container-low)',
+                      boxShadow: isSelected ? '0 0 24px rgba(239,51,64,0.15)' : 'none',
+                    }}
+                  >
+                    {/* Popular badge */}
+                    {plan.destaque && (
+                      <div className="absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-bold uppercase tracking-widest"
+                        style={{ backgroundColor: '#EF3340', color: '#fff' }}>
+                        ⭐ Popular
+                      </div>
+                    )}
+
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-lg font-black" style={{ fontFamily: 'var(--font-headline)', color: 'var(--color-on-surface)' }}>
+                            {plan.nome}
+                          </h3>
+                        </div>
+                        <p className="text-xs mb-3" style={{ color: 'var(--color-on-surface-variant)' }}>
+                          {plan.foco}
+                        </p>
+
+                        {/* Top features */}
+                        <div className="space-y-1.5">
+                          {includedFeatures.slice(0, 5).map((f, fi) => (
+                            <div key={fi} className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-on-surface-variant)' }}>
+                              <span style={{ color: '#22C55E', fontSize: '12px' }}>✓</span>
+                              {f.feature}
+                            </div>
+                          ))}
+                          {includedFeatures.length > 5 && (
+                            <p className="text-[10px] font-bold" style={{ color: '#EF3340' }}>
+                              +{includedFeatures.length - 5} recursos incluídos
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0 pt-1">
+                        <div className="flex items-baseline gap-0.5 justify-end">
+                          <span className="text-xs" style={{ color: 'var(--color-on-surface-variant)' }}>R$</span>
+                          <span className="text-3xl font-black" style={{ fontFamily: 'var(--font-headline)', color: isSelected ? '#EF3340' : 'var(--color-on-surface)' }}>
+                            {intPart}
+                          </span>
+                          <span className="text-sm font-bold" style={{ color: 'var(--color-on-surface-variant)' }}>
+                            ,{decPart}
+                          </span>
+                        </div>
+                        <span className="text-[10px]" style={{ color: 'var(--color-on-surface-variant)' }}>/mês</span>
+                        {billingCycle === 'annual' && (
+                          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                            className="text-[10px] font-bold mt-1" style={{ color: '#22C55E' }}>
+                            Economize R$ {Number(plan.economia_anual).toFixed(0)}
+                          </motion.p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Selection indicator */}
+                    <div className="flex items-center justify-center mt-4 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div
+                        className="w-5 h-5 rounded-full flex items-center justify-center transition-all"
+                        style={{
+                          border: isSelected ? 'none' : '1.5px solid rgba(255,255,255,0.2)',
+                          backgroundColor: isSelected ? '#EF3340' : 'transparent',
+                        }}
+                      >
+                        {isSelected && <span className="material-symbols-outlined text-white" style={{ fontSize: '14px' }}>check</span>}
+                      </div>
+                      <span className="ml-2 text-xs font-bold" style={{ color: isSelected ? '#EF3340' : 'var(--color-on-surface-variant)' }}>
+                        {isSelected ? 'Selecionado' : 'Selecionar plano'}
+                      </span>
+                    </div>
+                  </motion.button>
+                )
+              })}
+            </div>
+
+            {/* Guarantee badge */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl"
+              style={{ backgroundColor: 'rgba(27,107,74,0.1)', border: '1px solid rgba(27,107,74,0.25)' }}>
+              <span className="text-xl">🛡️</span>
+              <div>
+                <p className="text-xs font-bold" style={{ color: '#22C55E' }}>Garantia de 7 dias</p>
+                <p className="text-[10px]" style={{ color: 'var(--color-on-surface-variant)' }}>Se não gostar, devolvemos 100% do seu dinheiro.</p>
+              </div>
+            </motion.div>
+
+            <NextButton
+              disabled={!answers.selectedPlanId}
+              onClick={() => goNext()}
+              label="CONTINUAR COM ESTE PLANO"
+            />
+          </div>
+        )
+
+      // ── Plan loading bullets ─────────────────────────────────────────────────
+      case 'planLoading':
+        return (
+          <div className="flex flex-col items-center gap-8 py-8">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200 }}
+              className="w-20 h-20 rounded-full flex items-center justify-center text-4xl"
+              style={{ backgroundColor: 'var(--color-surface-container-high)' }}>
+              ⚡
+            </motion.div>
+            <div className="text-center">
+              <h2 className="text-2xl font-black" style={{ fontFamily: 'var(--font-headline)', color: 'var(--color-on-surface)' }}>
+                Preparando tudo...
+              </h2>
+            </div>
+            <div className="space-y-3 w-full">
+              <AnimatePresence>
+                {planLoadingBullets.map((bullet, i) => (
+                  <motion.div key={i} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
+                    className="flex items-center gap-3 text-sm font-medium"
+                    style={{ color: '#22C55E' }}>
+                    <span className="text-lg">✅</span>
+                    {bullet}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          </div>
+        )
+
+      // ── Criação de conta ────────────────────────────────────────────────────
+      case 'createAccount':
+        return (
+          <div className="w-full space-y-6 pb-6">
+            <div className="text-center space-y-2">
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200 }}
+                className="w-16 h-16 rounded-full flex items-center justify-center text-3xl mx-auto mb-2"
+                style={{ backgroundColor: 'var(--color-surface-container-high)' }}>
+                🚀
+              </motion.div>
+              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight leading-tight"
+                style={{ fontFamily: 'var(--font-headline)', color: 'var(--color-on-surface)' }}>
+                Crie sua conta
+              </h1>
+              <p className="text-sm font-medium" style={{ color: 'var(--color-on-surface-variant)' }}>
+                Falta pouco, {name}! Cadastre-se para acessar seu plano.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest block" style={{ color: 'var(--color-on-surface-variant)' }}>
+                  E-mail
+                </label>
+                <input
+                  type="email"
+                  autoFocus
+                  value={accountEmail}
+                  onChange={e => setAccountEmail(e.target.value)}
+                  placeholder="seu@email.com"
+                  className="w-full rounded-xl px-6 py-5 text-base font-semibold outline-none transition-all"
+                  style={{
+                    backgroundColor: 'var(--color-surface-container-low)',
+                    border: '1.5px solid rgba(255,255,255,0.1)',
+                    color: 'var(--color-on-surface)',
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest block" style={{ color: 'var(--color-on-surface-variant)' }}>
+                  Senha
+                </label>
+                <input
+                  type="password"
+                  value={accountPassword}
+                  onChange={e => setAccountPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full rounded-xl px-6 py-5 text-base font-semibold outline-none transition-all"
+                  style={{
+                    backgroundColor: 'var(--color-surface-container-low)',
+                    border: '1.5px solid rgba(255,255,255,0.1)',
+                    color: 'var(--color-on-surface)',
+                  }}
+                  onKeyDown={e => { if (e.key === 'Enter' && accountEmail.trim() && accountPassword.length >= 6) handleCreateAccount() }}
+                />
+              </div>
+            </div>
+
+            {accountError && (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="text-sm text-center p-4 rounded-xl"
+                style={{ backgroundColor: 'rgba(239,51,64,0.1)', color: '#EF3340' }}>
+                {accountError}
+              </motion.div>
+            )}
+
+            <button
+              onClick={handleCreateAccount}
+              disabled={isCreatingAccount || !accountEmail.trim() || accountPassword.length < 6}
+              className="w-full py-5 rounded-full text-xs font-bold uppercase tracking-widest transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40 mt-2 flex items-center justify-center gap-2"
+              style={{ fontFamily: 'var(--font-headline)', backgroundColor: '#EF3340', color: '#fff' }}
+            >
+              {isCreatingAccount ? (
+                <>
+                  <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Criando...
+                </>
+              ) : (
+                'CRIAR CONTA E FINALIZAR'
+              )}
+            </button>
+
+            <p className="text-[10px] text-center" style={{ color: 'var(--color-on-surface-variant)' }}>
+              Ao criar sua conta, você concorda com nossos <a href="#" className="underline">Termos de Uso</a> e <a href="#" className="underline">Política de Privacidade</a>.
+            </p>
+          </div>
         )
 
       // ── Loading ───────────────────────────────────────────────────────────
@@ -996,7 +1396,7 @@ export default function Form() {
         <footer className="w-full mt-auto" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
           <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-sm font-bold" style={{ fontFamily: 'var(--font-headline)', color: 'rgba(120,115,114,1)' }}>
-              © 2024 Move Você
+              © 2026 Move Você
             </div>
             <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(120,115,114,1)' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>lock</span>
@@ -1019,7 +1419,7 @@ export default function Form() {
 // Shared UI sub-components
 // ─────────────────────────────────────────────────────────────────────────────
 
-function QuestionWrapper({ question, subtext, children }: { question: string; subtext: string; children: React.ReactNode }) {
+function QuestionWrapper({ question, subtext, children }: { question: string; subtext: string; children: ReactNode }) {
   return (
     <div className="w-full space-y-6 pb-6">
       <div className="text-center space-y-2">

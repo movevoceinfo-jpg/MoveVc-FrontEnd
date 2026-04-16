@@ -37,6 +37,9 @@ export interface QuestionnaireAnswers {
   stressLevel: string
   workStyle: string
 
+  // Fase 6 — Plano escolhido
+  selectedPlanId: string
+
   // Calculados automaticamente
   imc?: number
   imcLabel?: string
@@ -71,6 +74,7 @@ export const EMPTY_ANSWERS: QuestionnaireAnswers = {
   sleepQuality: '',
   stressLevel: '',
   workStyle: '',
+  selectedPlanId: '',
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -148,6 +152,9 @@ export const progressMap: Record<string, number> = {
   transition_4: 80,
   sleepQuality: 86, stressLevel: 91, workStyle: 95,
   transition_5: 95,
+  choosePlan: 97,
+  planLoading: 98,
+  createAccount: 99,
   loading: 100,
 }
 

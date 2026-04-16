@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'motion/react'
-import Footer from '../components/Footer'
+
 
 export default function Login() {
   return (
