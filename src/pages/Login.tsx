@@ -1,8 +1,44 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'motion/react'
-
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const { session } = useAuth()
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (session) {
+      navigate('/home')
+    }
+  }, [session, navigate])
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) throw error
+      navigate('/home')
+    } catch (err: any) {
+      setError(err.message || 'Ocorreu um erro ao fazer login.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>
       <main className="flex-grow flex items-center justify-center px-4 py-12 relative overflow-hidden">
@@ -30,7 +66,13 @@ export default function Login() {
           <div className="p-8 rounded-xl shadow-2xl relative overflow-hidden" style={{ backgroundColor: 'var(--color-surface-container-low)' }}>
             <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: '#EF3340' }} />
 
-            <form className="space-y-6">
+            {error && (
+              <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm font-medium">
+                {error}
+              </div>
+            )}
+
+            <form className="space-y-6" onSubmit={handleLogin}>
               {/* Email */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-widest mb-2 ml-1" style={{ color: 'var(--color-on-surface-variant)' }} htmlFor="email">
@@ -41,7 +83,12 @@ export default function Login() {
                     mail
                   </span>
                   <input
-                    id="email" type="email" placeholder="seu@email.com"
+                    id="email" 
+                    type="email" 
+                    placeholder="seu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
                     className="w-full pl-12 pr-4 py-4 rounded-lg border-none outline-none transition-all focus:ring-2"
                     style={{
                       backgroundColor: 'var(--color-surface-container-highest)',
@@ -67,7 +114,12 @@ export default function Login() {
                     lock
                   </span>
                   <input
-                    id="password" type="password" placeholder="••••••••"
+                    id="password" 
+                    type="password" 
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
                     className="w-full pl-12 pr-4 py-4 rounded-lg border-none outline-none transition-all focus:ring-2"
                     style={{
                       backgroundColor: 'var(--color-surface-container-highest)',
@@ -79,14 +131,15 @@ export default function Login() {
               </div>
 
               {/* Submit */}
-              <Link
-                to="/home"
-                className="w-full py-4 font-bold text-lg rounded-lg flex items-center justify-center gap-2 mt-4 transition-all hover:brightness-110 active:scale-[0.98]"
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-4 font-bold text-lg rounded-lg flex items-center justify-center gap-2 mt-4 transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ fontFamily: 'var(--font-headline)', backgroundColor: '#EF3340', color: '#fff', boxShadow: '0 8px 24px rgba(239,51,64,0.2)' }}
               >
-                Entrar
-                <span className="material-symbols-outlined text-xl">arrow_forward</span>
-              </Link>
+                {loading ? 'Entrando...' : 'Entrar'}
+                {!loading && <span className="material-symbols-outlined text-xl">arrow_forward</span>}
+              </button>
             </form>
 
             <div className="mt-8 flex flex-col items-center gap-4">
@@ -134,3 +187,4 @@ export default function Login() {
     </div>
   )
 }
+

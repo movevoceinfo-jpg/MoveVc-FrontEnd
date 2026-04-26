@@ -1,13 +1,14 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { useState } from 'react'
 import { useTheme } from '../context/ThemeContext'
+import { useAuth } from '../context/AuthContext'
 
 const navLinks = [
-  { to: '/home', label: 'Treinos' },
+  { to: '/home', label: 'Home' },
+  { to: '/treino', label: 'Treino' },
   { to: '/dieta', label: 'Dieta' },
-  { to: '/#planos', label: 'Planos' },
-  { to: '/#comunidade', label: 'Comunidade' },
+  { to: '/perfil', label: 'Perfil' },
 ]
 
 interface NavbarProps {
@@ -17,7 +18,14 @@ interface NavbarProps {
 export default function Navbar({ minimal = false }: NavbarProps) {
   const { pathname } = useLocation()
   const { theme, toggleTheme } = useTheme()
+  const { session, signOut } = useAuth()
+  const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+
+  const handleSignOut = async () => {
+    await signOut()
+    navigate('/')
+  }
 
   return (
     <nav
@@ -68,20 +76,33 @@ export default function Navbar({ minimal = false }: NavbarProps) {
             </span>
           </button>
 
-          <Link
-            to="/login"
-            className="hidden lg:block font-bold text-sm transition-colors px-3 py-1.5"
-            style={{ fontFamily: 'var(--font-headline)', color: 'var(--color-on-surface-variant)' }}
-          >
-            Entrar
-          </Link>
-          <Link
-            to="/form"
-            className="font-bold text-sm px-5 py-2 rounded-lg transition-all hover:brightness-110 active:scale-95"
-            style={{ fontFamily: 'var(--font-headline)', backgroundColor: '#EF3340', color: '#fff' }}
-          >
-            Assinar Agora
-          </Link>
+          {!session ? (
+            <>
+              <Link
+                to="/login"
+                className="hidden lg:block font-bold text-sm transition-colors px-3 py-1.5"
+                style={{ fontFamily: 'var(--font-headline)', color: 'var(--color-on-surface-variant)' }}
+              >
+                Entrar
+              </Link>
+              <Link
+                to="/form"
+                className="font-bold text-sm px-5 py-2 rounded-lg transition-all hover:brightness-110 active:scale-95"
+                style={{ fontFamily: 'var(--font-headline)', backgroundColor: '#EF3340', color: '#fff' }}
+              >
+                Assinar Agora
+              </Link>
+            </>
+          ) : (
+            <button
+              onClick={handleSignOut}
+              aria-label="Sair"
+              className="w-9 h-9 flex items-center justify-center rounded-full transition-all hover:scale-110 active:scale-95 border"
+              style={{ borderColor: 'var(--color-outline-variant)', color: 'var(--color-on-surface-variant)' }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>logout</span>
+            </button>
+          )}
 
           {/* Mobile Hamburger */}
           {!minimal && (
@@ -129,3 +150,4 @@ export default function Navbar({ minimal = false }: NavbarProps) {
     </nav>
   )
 }
+

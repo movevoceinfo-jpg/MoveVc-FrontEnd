@@ -1,5 +1,6 @@
 import { motion } from 'motion/react'
 import Navbar from '../components/Navbar'
+import BottomNav from '../components/BottomNav'
 import Footer from '../components/Footer'
 
 const history = [
@@ -11,7 +12,7 @@ export default function Perfil() {
   return (
     <>
       <Navbar />
-      <main className="max-w-7xl mx-auto px-6 py-12">
+      <main className="max-w-7xl mx-auto px-6 py-12 pb-32">
         <div className="flex flex-col gap-12">
           {/* Profile header */}
           <motion.section initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="relative">
@@ -185,6 +186,8 @@ export default function Perfil() {
         </div>
       </main>
       <Footer />
+      <BottomNav />
     </>
   )
 }
+

@@ -27,3 +27,10 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Markdown docs (exceto README)
+*.md
+!README.md
+
+# Supabase Edge Functions (código local — deploy via MCP ou CLI)
+supabase/

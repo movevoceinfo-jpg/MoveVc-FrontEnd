@@ -28,7 +28,7 @@ export default function Footer() {
         <div>
           <h5 className="font-bold uppercase text-xs tracking-widest mb-6" style={{ color: 'var(--color-on-surface)' }}>Plataforma</h5>
           <ul className="space-y-4">
-            {['Treinos', 'Planos', 'Nutrição'].map(item => (
+            {['Blog', 'Planos'].map(item => (
               <li key={item}>
                 <Link to="/home" className="text-sm transition-all inline-block hover:translate-x-1"
                   style={{ color: 'rgba(165,161,160,1)', fontFamily: 'var(--font-headline)' }}>
@@ -43,7 +43,7 @@ export default function Footer() {
         <div>
           <h5 className="font-bold uppercase text-xs tracking-widest mb-6" style={{ color: 'var(--color-on-surface)' }}>Empresa</h5>
           <ul className="space-y-4">
-            {['Suporte', 'Trabalhe Conosco', 'Comunidade'].map(item => (
+            {['Sobre nós', 'FAQ', 'Contato'].map(item => (
               <li key={item}>
                 <Link to="/" className="text-sm transition-all inline-block hover:translate-x-1"
                   style={{ color: 'rgba(165,161,160,1)', fontFamily: 'var(--font-headline)' }}>

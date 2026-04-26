@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { useQuestionnaire, calcIMC, getIMCLabel, progressMap } from '../context/QuestionnaireContext'
@@ -19,7 +19,7 @@ type ScreenId =
   | 'transition_4'
   | 'sleepQuality' | 'stressLevel' | 'workStyle'
   | 'transition_5'
-  | 'choosePlan' | 'planLoading' | 'createAccount'
+  | 'choosePlan' | 'createAccount'
   | 'loading'
 
 interface Option {
@@ -32,16 +32,33 @@ interface Option {
 
 interface PlanData {
   id: string
-  nome: string
+  name: string
   slug: string
-  destaque: boolean
-  foco: string
-  preco_mensal: number
-  preco_anual_mensal: number
-  cobranca_anual_total: number
-  economia_anual: number
-  garantia_dias: number
-  features: { category: string; feature: string; included: boolean }[]
+  description: string | null
+  price_monthly: number
+  price_yearly: number
+  includes_diet: boolean
+  includes_workout: boolean
+  includes_challenges: boolean
+  includes_weekly_renewal: boolean
+  includes_supplementation: boolean
+  includes_sleep_guide: boolean
+  is_active: boolean
+}
+
+const PLAN_FEATURES: { key: keyof PlanData; label: string }[] = [
+  { key: 'includes_diet', label: 'Plano alimentar personalizado' },
+  { key: 'includes_workout', label: 'Plano de treino periodizado' },
+  { key: 'includes_challenges', label: 'Desafios semanais motivacionais' },
+  { key: 'includes_weekly_renewal', label: 'Renovação semanal do plano' },
+  { key: 'includes_supplementation', label: 'Guia de suplementação' },
+  { key: 'includes_sleep_guide', label: 'Guia de qualidade do sono' },
+]
+
+const PLAN_FOCUS: Record<string, string> = {
+  essential: 'Foco na alimentação — ideal para começar',
+  complete: 'Treino + dieta — resultado completo',
+  elite: 'Tudo incluso — máximo resultado e acompanhamento',
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,15 +76,8 @@ const FLOW: ScreenId[] = [
   'transition_4',
   'sleepQuality', 'stressLevel', 'workStyle',
   'transition_5',
-  'choosePlan', 'planLoading', 'createAccount',
+  'choosePlan', 'createAccount',
   'loading',
-]
-
-const PLAN_LOADING_BULLETS = [
-  'Analisando seu perfil completo...',
-  'Selecionando os recursos ideais para você...',
-  'Preparando seu plano personalizado...',
-  'Quase lá... ✅',
 ]
 
 const LOADING_BULLETS = [
@@ -77,17 +87,16 @@ const LOADING_BULLETS = [
   'Adaptando refeições às suas restrições...',
   'Calculando porções em medidas caseiras...',
   'Gerando sua lista de compras semanal...',
-  'Finalizando seu plano MoveVocê... ✅',
+  'Analisando compatibilidade dos alimentos...',
+  'Montando seu cardápio personalizado...',
+  'Criando substituições inteligentes...',
+  'Calculando macros por refeição...',
+  'Aplicando regras de periodização...',
+  'Validando calorias e nutrientes...',
+  'Salvando seu plano no banco de dados...',
 ]
 
-const GOAL_LABELS: Record<string, string> = {
-  lose_weight: 'Emagrecer', gain_muscle: 'Ganhar massa', body_definition: 'Definir o corpo',
-  more_health: 'Melhorar minha saúde', more_energy: 'Ter mais disposição', reduce_stress: 'Reduzir o estresse',
-}
-
-const LOCATION_LABELS: Record<string, string> = {
-  gym: 'Academia', home: 'Em casa', outdoor: 'Ao ar livre', hybrid: 'Academia + casa',
-}
+const LOADING_FINAL_BULLET = 'Plano gerado com sucesso! ✅'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -203,8 +212,6 @@ export default function Form() {
   // ── Plan selection state ──────────────────────────────────────────────────
   const [plans, setPlans] = useState<PlanData[]>([])
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('annual')
-  const [planLoadingBullets, setPlanLoadingBullets] = useState<string[]>([])
-  const planLoadingDone = useRef(false)
 
   // ── Account creation state ────────────────────────────────────────────────
   const [accountEmail, setAccountEmail] = useState('')
@@ -220,12 +227,18 @@ export default function Form() {
   // ── Fetch plans from Supabase ─────────────────────────────────────────────
   useEffect(() => {
     async function fetchPlans() {
-      const { data } = await supabase
-        .from('planos')
+      const { data, error } = await supabase
+        .from('subscription_plans')
         .select('*')
-        .eq('ativo', true)
-        .order('preco_mensal', { ascending: true })
-      if (data) setPlans(data as PlanData[])
+        .eq('is_active', true)
+        .order('price_monthly', { ascending: true })
+      
+      if (error) {
+        console.error('[MoveVocê] Erro ao buscar subscription_plans:', error)
+      } else {
+        console.log('[MoveVocê] Planos carregados:', data)
+        if (data) setPlans(data as PlanData[])
+      }
     }
     fetchPlans()
   }, [])
@@ -257,47 +270,32 @@ export default function Form() {
     setScreenIndex(i => Math.max(i - 1, 0))
   }, [])
 
-  // ── Plan loading animation ────────────────────────────────────────────────
-  useEffect(() => {
-    if (screenId !== 'planLoading') return
-    if (planLoadingDone.current) {
-      // Already done? Skip straight to next
-      goNext()
-      return
-    }
-    setPlanLoadingBullets([])
-    PLAN_LOADING_BULLETS.forEach((bullet, i) => {
-      setTimeout(() => {
-        setPlanLoadingBullets(prev => [...prev, bullet])
-      }, i * 650)
-    })
-    setTimeout(() => {
-      planLoadingDone.current = true
-      goNext()
-    }, PLAN_LOADING_BULLETS.length * 650 + 400)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screenId])
-
   // ── Loading screen animation ───────────────────────────────────────────────
   useEffect(() => {
     if (screenId !== 'loading') return
     computeMetrics()
+    setLoadingBullets([])
+    setSubmitError(null)
 
+    // Animate bullets at intervals (visual indicator)
+    const bulletTimers: ReturnType<typeof setTimeout>[] = []
     LOADING_BULLETS.forEach((bullet, i) => {
-      setTimeout(() => {
-        setLoadingBullets(prev => [...prev, bullet])
-      }, i * 650)
+      bulletTimers.push(
+        setTimeout(() => {
+          setLoadingBullets(prev => [...prev, bullet])
+        }, i * 2200)
+      )
     })
 
-    // Submit data then navigate
-    setTimeout(async () => {
-      await handleSubmit()
-    }, LOADING_BULLETS.length * 650 + 600)
+    // Call the edge function (runs in parallel with bullets)
+    handleGeneratePlan()
+
+    return () => bulletTimers.forEach(clearTimeout)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenId])
 
-  // ── Submit to Supabase ────────────────────────────────────────────────────
-  const handleSubmit = async () => {
+  // ── Generate plan via Edge Function ────────────────────────────────────────
+  const handleGeneratePlan = async () => {
     setIsSubmitting(true)
     setSubmitError(null)
     try {
@@ -308,56 +306,83 @@ export default function Form() {
         throw new Error('Usuário não autenticado. Por favor, crie sua conta na etapa anterior.')
       }
 
-      console.log('[MoveVocê] Enviando respostas para o banco de dados...', answers)
+      console.log('[MoveVocê] Enviando dados para geração do plano via IA...')
 
-      const { data, error } = await supabase
-        .from('questionario_respostas')
-        .insert([{
-          user_id: session.user.id,
-          first_name: answers.firstName,
-          main_goal: answers.mainGoal,
-          biggest_motivation: answers.biggestMotivation,
-          biological_sex: answers.biologicalSex,
-          age: answers.age,
-          weight_kg: answers.weight,
-          height_cm: answers.height,
-          body_feeling_now: answers.bodyFeelingNow,
-          fitness_level: answers.fitnessLevel,
-          training_location: answers.trainingLocation,
-          training_days_per_week: answers.trainingDaysPerWeek,
-          session_duration: answers.sessionDuration,
-          injuries: answers.injuries,
-          dietary_restrictions: answers.dietaryRestrictions,
-          meals_per_day: answers.mealsPerDay,
-          cooking_habit: answers.cookingHabit,
-          hunger_pattern: answers.hungerPattern,
-          water_intake: answers.waterIntake,
-          food_relationship: answers.foodRelationship,
-          sleep_quality: answers.sleepQuality,
-          stress_level: answers.stressLevel,
-          work_style: answers.workStyle,
-          selected_plan_id: answers.selectedPlanId || null,
-          imc: answers.imc,
-          imc_label: answers.imcLabel,
-          tmb: answers.tmb,
-          tdee: answers.tdee,
-          tdee_adjusted: answers.tdeeAdjusted,
-          protein_g: answers.proteinG,
-          carbs_g: answers.carbsG,
-          fat_g: answers.fatG,
-          status: 'completed'
-        }])
-        .select()
-        .single()
+      // Build the payload in the format the edge function expects
+      const payload = {
+        firstName: answers.firstName,
+        mainGoal: answers.mainGoal,
+        biggestMotivation: answers.biggestMotivation,
+        biologicalSex: answers.biologicalSex,
+        age: answers.age,
+        weight: answers.weight,
+        height: answers.height,
+        bodyFeelingNow: answers.bodyFeelingNow,
+        fitnessLevel: answers.fitnessLevel,
+        trainingLocation: answers.trainingLocation,
+        trainingDaysPerWeek: answers.trainingDaysPerWeek,
+        sessionDuration: answers.sessionDuration,
+        injuries: answers.injuries,
+        dietaryRestrictions: answers.dietaryRestrictions,
+        mealsPerDay: answers.mealsPerDay,
+        cookingHabit: answers.cookingHabit,
+        hungerPattern: answers.hungerPattern,
+        waterIntake: answers.waterIntake,
+        foodRelationship: answers.foodRelationship,
+        sleepQuality: answers.sleepQuality,
+        stressLevel: answers.stressLevel,
+        workStyle: answers.workStyle,
+        selectedPlanId: answers.selectedPlanId || 'complete',
+        imc: answers.imc,
+        imcLabel: answers.imcLabel,
+        tmb: answers.tmb,
+        tdee: answers.tdee,
+        tdeeAdjusted: answers.tdeeAdjusted,
+        proteinG: answers.proteinG,
+        carbsG: answers.carbsG,
+        fatG: answers.fatG,
+      }
 
-      if (error) throw error
+      const { data, error } = await supabase.functions.invoke('generate-plan', {
+        body: payload,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
 
-      console.log('[MoveVocê] Respostas salvas com sucesso! ID:', data?.id)
+      if (error) {
+        let errorMessage = error.message || 'Erro ao gerar plano. Tente novamente.'
+        // Supabase functions-js attaches the response context on HTTP errors
+        if (error.context && typeof error.context.json === 'function') {
+          try {
+            const errorBody = await error.context.json()
+            errorMessage = errorBody.details || errorBody.error || errorMessage
+          } catch (e) {
+            // ignore
+          }
+        } else if (typeof data === 'object' && data?.error) {
+          errorMessage = data.error
+        }
+        throw new Error(errorMessage)
+      }
+
+      if (data?.error) {
+        throw new Error(data.error)
+      }
+
+      console.log('[MoveVocê] Plano gerado com sucesso!', data)
+
+      // Show final success bullet
+      setLoadingBullets(prev => [...prev, LOADING_FINAL_BULLET])
+
+      // Small delay for the user to see the success state
+      await new Promise(r => setTimeout(r, 1500))
+
       navigate('/home')
 
     } catch (err: any) {
-      console.error('[MoveVocê] Erro ao salvar dados:', err)
-      setSubmitError(err.message || 'Erro ao sincronizar dados. Tente novamente.')
+      console.error('[MoveVocê] Erro ao gerar plano:', err)
+      setSubmitError(err.message || 'Erro ao gerar seu plano personalizado. Tente novamente.')
     } finally {
       setIsSubmitting(false)
     }
@@ -388,11 +413,67 @@ export default function Form() {
     }
     setIsCreatingAccount(true)
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: accountEmail.trim(),
         password: accountPassword,
       })
-      if (error) throw error
+      if (signUpError) throw signUpError
+
+      // If signUp didn't return a session (email confirmation required),
+      // auto-login with password to get a valid JWT
+      if (!signUpData.session) {
+        console.log('[MoveVocê] SignUp sem sessão — fazendo login automático...')
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: accountEmail.trim(),
+          password: accountPassword,
+        })
+        if (signInError) throw signInError
+      }
+
+      // Verify we have a session before proceeding
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('Não foi possível autenticar. Verifique seu e-mail e tente novamente.')
+      }
+
+      console.log('[MoveVocê] Atualizando profile com métricas e nome...')
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          first_name: answers.firstName,
+          imc: answers.imc,
+          imc_label: answers.imcLabel,
+          tmb: answers.tmb,
+          tdee: answers.tdee,
+          tdee_adjusted: answers.tdeeAdjusted,
+        })
+        .eq('id', session.user.id)
+
+      if (profileError) console.error('[MoveVocê] Erro ao atualizar profile:', profileError)
+
+      console.log('[MoveVocê] Inicializando subscription...')
+      const planSlug = answers.selectedPlanId || 'complete'
+      const matchedPlan = plans.find(p => p.slug === planSlug)
+      
+      if (matchedPlan) {
+        const { error: subError } = await supabase
+          .from('subscriptions')
+          .insert({
+            user_id: session.user.id,
+            plan_id: matchedPlan.id,
+            billing_cycle: billingCycle,
+            status: 'active',
+            started_at: new Date().toISOString(),
+            current_period_start: new Date().toISOString(),
+            current_period_end: new Date(new Date().setMonth(new Date().getMonth() + (billingCycle === 'annual' ? 12 : 1))).toISOString(),
+          })
+
+        if (subError) console.error('[MoveVocê] Erro ao inicializar assinatura:', subError)
+      } else {
+        console.warn('[MoveVocê] Não foi possível encontrar o UUID do plano para inicializar a assinatura.')
+      }
+
+      console.log('[MoveVocê] Conta criada e autenticada com sucesso!')
       // Success — advance to final loading
       goNext()
     } catch (err: any) {
@@ -1007,11 +1088,17 @@ export default function Form() {
             {/* Plan cards */}
             <div className="space-y-4">
               {plans.map((plan, idx) => {
-                const isSelected = answers.selectedPlanId === plan.id
-                const price = billingCycle === 'annual' ? plan.preco_anual_mensal : plan.preco_mensal
-                const priceStr = Number(price).toFixed(2)
+                const isSelected = answers.selectedPlanId === plan.slug
+                const isPopular = plan.slug === 'complete'
+                const priceMonthly = Number(plan.price_monthly)
+                const priceYearly = Number(plan.price_yearly)
+                const priceYearlyPerMonth = priceYearly / 12
+                const price = billingCycle === 'annual' ? priceYearlyPerMonth : priceMonthly
+                const priceStr = price.toFixed(2)
                 const [intPart, decPart] = priceStr.split('.')
-                const includedFeatures = plan.features.filter(f => f.included)
+                const savings = (priceMonthly * 12) - priceYearly
+                const includedFeatures = PLAN_FEATURES.filter(f => plan[f.key] === true)
+                const excludedFeatures = PLAN_FEATURES.filter(f => plan[f.key] !== true)
 
                 return (
                   <motion.button
@@ -1019,16 +1106,16 @@ export default function Form() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.1 }}
-                    onClick={() => setAnswer('selectedPlanId', plan.id)}
+                    onClick={() => setAnswer('selectedPlanId', plan.slug)}
                     className="w-full text-left rounded-2xl p-5 transition-all relative overflow-hidden"
                     style={{
-                      border: isSelected ? '2px solid #EF3340' : plan.destaque ? '2px solid rgba(239,51,64,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                      border: isSelected ? '2px solid #EF3340' : isPopular ? '2px solid rgba(239,51,64,0.4)' : '1px solid rgba(255,255,255,0.08)',
                       backgroundColor: isSelected ? 'var(--color-surface-container-high)' : 'var(--color-surface-container-low)',
                       boxShadow: isSelected ? '0 0 24px rgba(239,51,64,0.15)' : 'none',
                     }}
                   >
                     {/* Popular badge */}
-                    {plan.destaque && (
+                    {isPopular && (
                       <div className="absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-bold uppercase tracking-widest"
                         style={{ backgroundColor: '#EF3340', color: '#fff' }}>
                         ⭐ Popular
@@ -1039,26 +1126,27 @@ export default function Form() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="text-lg font-black" style={{ fontFamily: 'var(--font-headline)', color: 'var(--color-on-surface)' }}>
-                            {plan.nome}
+                            {plan.name}
                           </h3>
                         </div>
                         <p className="text-xs mb-3" style={{ color: 'var(--color-on-surface-variant)' }}>
-                          {plan.foco}
+                          {PLAN_FOCUS[plan.slug] || plan.description || ''}
                         </p>
 
-                        {/* Top features */}
+                        {/* Included features */}
                         <div className="space-y-1.5">
-                          {includedFeatures.slice(0, 5).map((f, fi) => (
+                          {includedFeatures.map((f, fi) => (
                             <div key={fi} className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-on-surface-variant)' }}>
                               <span style={{ color: '#22C55E', fontSize: '12px' }}>✓</span>
-                              {f.feature}
+                              {f.label}
                             </div>
                           ))}
-                          {includedFeatures.length > 5 && (
-                            <p className="text-[10px] font-bold" style={{ color: '#EF3340' }}>
-                              +{includedFeatures.length - 5} recursos incluídos
-                            </p>
-                          )}
+                          {excludedFeatures.map((f, fi) => (
+                            <div key={`ex-${fi}`} className="flex items-center gap-2 text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                              <span style={{ fontSize: '12px' }}>✗</span>
+                              <span className="line-through">{f.label}</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
 
@@ -1073,10 +1161,10 @@ export default function Form() {
                           </span>
                         </div>
                         <span className="text-[10px]" style={{ color: 'var(--color-on-surface-variant)' }}>/mês</span>
-                        {billingCycle === 'annual' && (
+                        {billingCycle === 'annual' && savings > 0 && (
                           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                             className="text-[10px] font-bold mt-1" style={{ color: '#22C55E' }}>
-                            Economize R$ {Number(plan.economia_anual).toFixed(0)}
+                            Economize R$ {savings.toFixed(0)}
                           </motion.p>
                         )}
                       </div>
@@ -1121,37 +1209,6 @@ export default function Form() {
           </div>
         )
 
-      // ── Plan loading bullets ─────────────────────────────────────────────────
-      case 'planLoading':
-        return (
-          <div className="flex flex-col items-center gap-8 py-8">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 200 }}
-              className="w-20 h-20 rounded-full flex items-center justify-center text-4xl"
-              style={{ backgroundColor: 'var(--color-surface-container-high)' }}>
-              ⚡
-            </motion.div>
-            <div className="text-center">
-              <h2 className="text-2xl font-black" style={{ fontFamily: 'var(--font-headline)', color: 'var(--color-on-surface)' }}>
-                Preparando tudo...
-              </h2>
-            </div>
-            <div className="space-y-3 w-full">
-              <AnimatePresence>
-                {planLoadingBullets.map((bullet, i) => (
-                  <motion.div key={i} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
-                    className="flex items-center gap-3 text-sm font-medium"
-                    style={{ color: '#22C55E' }}>
-                    <span className="text-lg">✅</span>
-                    {bullet}
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-          </div>
-        )
 
       // ── Criação de conta ────────────────────────────────────────────────────
       case 'createAccount':
@@ -1256,26 +1313,62 @@ export default function Form() {
                 {answers.firstName || 'você'}...
               </h2>
             </div>
-            <div className="space-y-3 w-full">
+            <div className="space-y-3 w-full max-h-[40vh] overflow-y-auto">
               <AnimatePresence>
                 {loadingBullets.map((bullet, i) => (
                   <motion.div key={i} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
                     className="flex items-center gap-3 text-sm font-medium"
-                    style={{ color: '#22C55E' }}>
-                    <span className="text-lg">✅</span>
+                    style={{ color: bullet === LOADING_FINAL_BULLET ? '#22C55E' : 'var(--color-on-surface-variant)' }}>
+                    <span className="text-lg">{bullet === LOADING_FINAL_BULLET ? '✅' : '⏳'}</span>
                     {bullet}
                   </motion.div>
                 ))}
               </AnimatePresence>
             </div>
             {submitError && (
-              <div className="text-sm text-center p-4 rounded-xl" style={{ backgroundColor: 'rgba(239,51,64,0.1)', color: '#EF3340' }}>
-                {submitError}
-                <button onClick={handleSubmit} className="block mt-2 font-bold underline">Tentar novamente</button>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full space-y-3"
+              >
+                <div className="text-sm text-center p-5 rounded-2xl space-y-3"
+                  style={{ backgroundColor: 'rgba(239,51,64,0.08)', border: '1px solid rgba(239,51,64,0.2)' }}>
+                  <div className="flex items-center justify-center gap-2 text-base font-bold" style={{ color: '#EF3340' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>error</span>
+                    Ops, algo deu errado
+                  </div>
+                  <p className="text-xs" style={{ color: 'var(--color-on-surface-variant)' }}>
+                    {submitError}
+                  </p>
+                  <button
+                    onClick={handleGeneratePlan}
+                    disabled={isSubmitting}
+                    className="w-full py-4 rounded-full text-xs font-bold uppercase tracking-widest transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2"
+                    style={{ fontFamily: 'var(--font-headline)', backgroundColor: '#EF3340', color: '#fff' }}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Tentando novamente...
+                      </>
+                    ) : (
+                      'TENTAR NOVAMENTE'
+                    )}
+                  </button>
+                </div>
+              </motion.div>
             )}
             {isSubmitting && !submitError && (
-              <p className="text-xs" style={{ color: 'var(--color-on-surface-variant)' }}>Salvando seu perfil...</p>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex items-center gap-3"
+              >
+                <span className="inline-block w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#EF3340', borderTopColor: 'transparent' }} />
+                <p className="text-xs font-medium" style={{ color: 'var(--color-on-surface-variant)' }}>
+                  Isso pode levar até 1 minuto...
+                </p>
+              </motion.div>
             )}
           </div>
         )
@@ -1538,5 +1631,3 @@ function TransitionScreen({
   )
 }
 
-// Needed for GOAL_LABELS and LOCATION_LABELS usage in other files (e.g. CTA page)
-export { GOAL_LABELS, LOCATION_LABELS }
